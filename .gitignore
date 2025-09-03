@@ -1,0 +1,29 @@
+﻿# ---- Flutter client ----
+client_flutter/.dart_tool/
+client_flutter/build/
+client_flutter/.idea/
+client_flutter/.vscode/
+client_flutter/ios/
+client_flutter/macos/
+client_flutter/linux/
+client_flutter/windows/
+client_flutter/web/.dart_tool/
+**/pubspec.lock
+
+# ---- Python server ----
+.venv/
+server_ai/.venv/
+**/__pycache__/
+*.pyc
+*.log
+
+# ---- OS/Editor ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ---- Model/cache (nu urcam fisiere grele) ----
+server_ai/models/
+server_ai/checkpoints/
+cache/

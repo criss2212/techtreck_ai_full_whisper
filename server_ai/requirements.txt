@@ -1,0 +1,12 @@
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+faster-whisper==1.0.0
+webrtcvad==2.0.10
+numpy==1.26.4
+soundfile==0.12.1
+sentence-transformers==2.2.2
+faiss-cpu==1.7.4
+scikit-learn==1.4.2
+nltk==3.8.1
+pydantic==2.7.1
+pydantic-core==2.18.2

@@ -1,0 +1,26 @@
+name: techtreck_ai_client_whisper
+description: Client Flutter cu AI Whisper STT (WS) + fallback OS STT
+publish_to: "none"
+version: 0.3.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  shared_preferences: ^2.2.3
+  http: ^1.2.1
+  vibration: ^1.7.7
+  speech_to_text: ^6.6.2
+  record: ^6.1.1 
+  web_socket_channel: ^3.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
