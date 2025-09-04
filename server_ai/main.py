@@ -1,4 +1,3 @@
-# main.py — TechTreck AI server (Whisper + semantic NLP)
 import base64
 import json
 import time
@@ -15,7 +14,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from faster_whisper import WhisperModel
 
-# --- App & CORS ---
 app = FastAPI(title="TechTreck AI Whisper", version="0.4.0")
 app.add_middleware(
     CORSMiddleware,
@@ -24,10 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Whisper STT (CPU by default; set device="cuda" if you run on GPU) ---
 whisper = WhisperModel("small", device="cpu", compute_type="int8")
 
-# --- Semantic search / NLP utilities ---
 from sentence_transformers import SentenceTransformer
 import faiss
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -40,7 +36,7 @@ except LookupError:
 
 embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 DIM = 384
-index = faiss.IndexFlatIP(DIM)  # cosine via normalized vectors
+index = faiss.IndexFlatIP(DIM)  
 corpus: List[str] = []
 meta: List[Dict] = []
 
@@ -62,7 +58,6 @@ def add_to_index(session_text: str, session_id: str) -> int:
     meta.extend([{"session_id": session_id, "text": s} for s in sents])
     return len(sents)
 
-# --- REST: ingest / summary / keywords / search ---
 class IngestReq(BaseModel):
     text: str
     session_id: str
@@ -126,7 +121,6 @@ def search(req: SearchReq):
 def health():
     return {"status": "ok", "indexed": len(corpus)}
 
-# --- Audio helpers ---
 def s16le_to_float32(pcm_bytes: bytes) -> np.ndarray:
     return np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
@@ -152,7 +146,6 @@ def decode_webm_opus_to_float(webm_blob: bytes, sample_rate: int = 16000) -> np.
         pass
     return np.asarray(audio, dtype=np.float32)
 
-# --- WebSocket STT: accepts PCM (desktop) and WebM/Opus (web) ---
 @app.websocket("/ws")
 async def ws_transcribe(ws: WebSocket):
     await ws.accept()
@@ -168,16 +161,14 @@ async def ws_transcribe(ws: WebSocket):
             if evt.get("type") != "audio_chunk":
                 continue
 
-            fmt = evt.get("format")            # "pcm_s16le" or "webm_opus"
+            fmt = evt.get("format")            
             sr = int(evt.get("sample_rate", 16000))
             raw = base64.b64decode(evt["content"])
             now = time.time()
 
             if fmt == "pcm_s16le":
-                # desktop/mobile: stream raw PCM 16-bit
                 pcm_buf = np.concatenate([pcm_buf, s16le_to_float32(raw)])
 
-                # flush every ~1.0s if enough audio
                 if (now - last_flush_time) > 1.0 and len(pcm_buf) > sr * 0.5:
                     segments, _ = whisper.transcribe(pcm_buf, language="ro", vad_filter=True)
                     text = "".join(s.text for s in segments).strip()
@@ -187,7 +178,6 @@ async def ws_transcribe(ws: WebSocket):
                     last_flush_time = now
 
             elif fmt == "webm_opus":
-                # web: aggregate WebM/Opus chunks, decode via ffmpeg, flush ~1.2s
                 webm_bytes.extend(raw)
                 if (now - last_flush_time) > 1.2 and len(webm_bytes) > 8000:
                     audio = decode_webm_opus_to_float(bytes(webm_bytes), sample_rate=sr)
@@ -198,9 +188,7 @@ async def ws_transcribe(ws: WebSocket):
                     webm_bytes = bytearray()
                     last_flush_time = now
             else:
-                # unknown format: ignore
                 pass
 
     except WebSocketDisconnect:
-        # client closed connection
         pass
