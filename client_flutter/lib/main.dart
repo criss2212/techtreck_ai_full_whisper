@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vibration/vibration.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt; // kept for fallback
-import 'ai/ws_transcriber.dart'; // AI STT over WebSocket (Whisper)
+import 'package:speech_to_text/speech_to_text.dart' as stt; 
+import 'ai/ws_transcriber.dart'; 
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
