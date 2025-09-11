@@ -6,13 +6,17 @@ import os
 import tempfile
 import subprocess
 from typing import List, Dict
-
 import numpy as np
 import soundfile as sf
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from faster_whisper import WhisperModel
+from transformers import pipeline
+import faiss
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sentence_transformers import SentenceTransformer
+import nltk
 
 app = FastAPI(title="TechTreck AI Whisper", version="0.4.0")
 app.add_middleware(
@@ -24,21 +28,20 @@ app.add_middleware(
 
 whisper = WhisperModel("small", device="cpu", compute_type="int8")
 
-from sentence_transformers import SentenceTransformer
-import faiss
-from sklearn.feature_extraction.text import TfidfVectorizer
-import nltk
-
-try:
-    nltk.data.find("tokenizers/punkt")
-except LookupError:
-    nltk.download("punkt")
+sentiment_ro = pipeline("sentiment-analysis", model="dumitrescustefan/bert-base-romanian-cased-v1")
+sentiment_en = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
 
 embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 DIM = 384
 index = faiss.IndexFlatIP(DIM)  
 corpus: List[str] = []
 meta: List[Dict] = []
+
+try:
+    nltk.data.find("tokenizers/punkt")
+except LookupError:
+    nltk.download("punkt")
+
 
 def split_sentences(text: str) -> List[str]:
     sents = nltk.sent_tokenize(text)
@@ -57,6 +60,9 @@ def add_to_index(session_text: str, session_id: str) -> int:
     corpus.extend(sents)
     meta.extend([{"session_id": session_id, "text": s} for s in sents])
     return len(sents)
+
+def s16le_to_float32(pcm_bytes: bytes):
+    return np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
 class IngestReq(BaseModel):
     text: str
@@ -153,11 +159,16 @@ async def ws_transcribe(ws: WebSocket):
     pcm_buf = np.zeros(0, dtype=np.float32)
     webm_bytes = bytearray()
     last_flush_time = time.time()
+    language = "ro"
 
     try:
         while True:
             msg = await ws.receive_text()
             evt = json.loads(msg)
+            if evt.get("type") == "set_language":
+                language = evt.get("lang", "ro")
+                continue
+
             if evt.get("type") != "audio_chunk":
                 continue
 
@@ -179,16 +190,19 @@ async def ws_transcribe(ws: WebSocket):
 
             elif fmt == "webm_opus":
                 webm_bytes.extend(raw)
-                if (now - last_flush_time) > 1.2 and len(webm_bytes) > 8000:
+                if (now - last_flush_time) > 1.0 and len(pcm_buf) > sr*0.5:
                     audio = decode_webm_opus_to_float(bytes(webm_bytes), sample_rate=sr)
-                    segments, _ = whisper.transcribe(audio, language="ro", vad_filter=True)
+                    segments, _ = whisper.transcribe(pcm_buf, language=language, vad_filter=True)
                     text = "".join(s.text for s in segments).strip()
                     if text:
-                        await ws.send_text(json.dumps({"type": "final", "text": text}))
-                    webm_bytes = bytearray()
+                        if language == "ro":
+                            sent = sentiment_ro(text[:512])[0]
+                        else:
+                            sent = sentiment_en(text[:512])[0]
+                            
+                        await ws.send_text(json.dumps({"type": "final", "text": text, "sentiment": sent}))
+                    pcm_buf = np.zeros(0, dtype=np.float32)
                     last_flush_time = now
-            else:
-                pass
 
     except WebSocketDisconnect:
         pass
