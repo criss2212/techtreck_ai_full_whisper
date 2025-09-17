@@ -25,6 +25,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+processor = Wav2Vec2Processor.from_pretrained("superb/hubert-large-superb-er")
+model = Wav2Vec2ForSequenceClassification.from_pretrained("superb/hubert-large-superb-er")
+
+labels = ["neutral", "happy", "sad", "angry", "fear", "disgust", "surprise"]
 
 whisper = WhisperModel("small", device="cpu", compute_type="int8")
 
@@ -151,6 +155,25 @@ def decode_webm_opus_to_float(webm_blob: bytes, sample_rate: int = 16000) -> np.
     except Exception:
         pass
     return np.asarray(audio, dtype=np.float32)
+
+@app.post("/emotion")
+async def detect_emotion(file: UploadFile):
+    # Salvează fișierul temporar
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        tmp.write(await file.read())
+        tmp.flush()
+        audio_path = tmp.name
+
+    waveform, sample_rate = torchaudio.load(audio_path)
+    input_values = processor(waveform.squeeze().numpy(), sampling_rate=sample_rate, return_tensors="pt").input_values
+
+    with torch.no_grad():
+        logits = model(input_values).logits
+        predicted_id = torch.argmax(logits, dim=-1).item()
+        emotion = labels[predicted_id]
+
+    os.remove(audio_path)
+    return {"emotion": emotion}
 
 @app.websocket("/ws")
 async def ws_transcribe(ws: WebSocket):
